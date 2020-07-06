@@ -178,7 +178,7 @@ namespace frontier_exploration
     }
 
     bool BoundedExploreLayer::updateBoundaryPolygon(geometry_msgs::PolygonStamped polygon_stamped){
-
+        ROS_ERROR("In cb");
         //clear existing boundary, if any
         polygon_.points.clear();
 
@@ -211,6 +211,7 @@ namespace frontier_exploration
             polygon_.points.push_back(temp);
         }
 
+        ROS_ERROR("In cb 2");
         if(resize_to_boundary_){
             updateOrigin(0,0);
 
@@ -233,6 +234,8 @@ namespace frontier_exploration
             layered_costmap_->resizeMap(size_x, size_y, layered_costmap_->getCostmap()->getResolution(), min_x, min_y);
             matchSize();
         }
+
+        ROS_ERROR("Done");
 
         configured_ = true;
         marked_ = false;

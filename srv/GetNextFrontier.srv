@@ -1,3 +1,10 @@
 geometry_msgs/PoseStamped start_pose
 ---
 geometry_msgs/PoseStamped next_frontier
+int32 error_code
+
+# Error codes
+int32 SUCCESS=1
+int32 NO_FRONTIER=2
+int32 FAILED=-1
+int32 BOUNDARY_NOT_SET=-2
