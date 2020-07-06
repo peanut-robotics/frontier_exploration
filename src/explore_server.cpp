@@ -43,8 +43,34 @@ public:
 
         explore_costmap_ros_ = boost::shared_ptr<costmap_2d::Costmap2DROS>(new costmap_2d::Costmap2DROS("explore_costmap", tf_listener_));
 
-        as_.registerPreemptCallback(boost::bind(&FrontierExplorationServer::preemptCb, this));
-        as_.start();
+        // as_.registerPreemptCallback(boost::bind(&FrontierExplorationServer::preemptCb, this));
+        // as_.start();
+
+        // Plugin service clients 
+        update_boundary_polygon_client_ = private_nh_.serviceClient<frontier_exploration::UpdateBoundaryPolygon>("explore_costmap/explore_boundary/update_boundary_polygon");
+        get_next_frontier_client_ = private_nh_.serviceClient<frontier_exploration::GetNextFrontier>("explore_costmap/explore_boundary/get_next_frontier");
+        if (!update_boundary_polygon_client_.waitForExistence(ros::Duration(3))){
+            ROS_ERROR("Could not find update_boundary_polygon ");
+            return;
+        }
+        if (!get_next_frontier_client_.waitForExistence(ros::Duration(3))){
+            ROS_ERROR("Could not find update_boundary_polygon ");
+            return;
+        }
+
+        // Move base 
+        if(!move_client_.waitForServer(ros::Duration(3))){
+            ROS_ERROR("Could not connect to move_client_ server");
+            return;
+        } 
+
+        // Start service servers 
+        update_polygon_server_=  private_nh_.advertiseService("update_polygon", &FrontierExplorationServer::updatePolygonCb, this);
+        get_next_frontier_server_=  private_nh_.advertiseService("get_next_frontier", &FrontierExplorationServer::getNextFrontierCb, this);
+
+        explore_costmap_ros_->resetLayers();
+
+
     }
 
 private:
@@ -55,6 +81,7 @@ private:
     actionlib::SimpleActionServer<frontier_exploration::ExploreTaskAction> as_;
 
     boost::shared_ptr<costmap_2d::Costmap2DROS> explore_costmap_ros_;
+    geometry_msgs::PolygonStamped current_explore_boundary_;
     double frequency_, goal_aliasing_;
     bool success_, moving_;
     int retry_;
@@ -63,6 +90,114 @@ private:
     frontier_exploration::ExploreTaskFeedback feedback_;
     actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> move_client_;
     move_base_msgs::MoveBaseGoal move_client_goal_;
+
+    //  Service clients
+    ros::ServiceClient update_boundary_polygon_client_;
+    ros::ServiceClient get_next_frontier_client_;
+
+    //  Service servers
+    ros::ServiceServer update_polygon_server_;
+    ros::ServiceServer get_next_frontier_server_;
+
+    /**
+     * @brief Update polygon boundary for explore server
+     */
+    
+    bool updatePolygonCb(   frontier_exploration::UpdateBoundaryPolygon::Request& req, 
+                            frontier_exploration::UpdateBoundaryPolygon::Response& res){
+
+        frontier_exploration::UpdateBoundaryPolygon srv;
+        srv.request.explore_boundary = req.explore_boundary;
+        if(updateBoundaryPolygon.call(srv)){
+            current_explore_boundary_ = req.explore_boundary;
+            ROS_INFO("Region boundary set");
+        }else{
+            ROS_ERROR("Failed to set region boundary");
+            as_.setAborted();
+            return;
+        }
+    }
+
+     /**
+     * @brief Get next frontier to explore
+     */
+    
+    bool getNextFrontierCb( frontier_exploration::GetNextFrontier::Request& server_req, 
+                            frontier_exploration::GetNextFrontier::Response& server_res){
+        frontier_exploration::GetNextFrontier srv;
+        geometry_msgs::PoseStamped goal_pose; //placeholder for next goal to be sent to move base
+        tf::Stamped<tf::Pose> robot_pose;
+        geometry_msgs::PoseStamped eval_pose;
+
+        // Check if boundary is set 
+
+        // get current robot pose in frame of exploration boundary
+        explore_costmap_ros_->getRobotPose(robot_pose);
+        tf::poseStampedTFToMsg(robot_pose,srv.request.start_pose);
+
+        // evaluate if robot is within exploration boundary using robot_pose in boundary frame
+        eval_pose = srv.request.start_pose;
+        if(eval_pose.header.frame_id != server_req.explore_boundary.header.frame_id){
+            tf_listener_.transformPose(goal->explore_boundary.header.frame_id, srv.request.start_pose, eval_pose);
+        }
+
+        //check if robot is not within exploration boundary and needs to return to center of search area
+        if(goal->explore_boundary.polygon.points.size() > 0 && !pointInPolygon(eval_pose.pose.position,goal->explore_boundary.polygon)){
+            
+            //check if robot has explored at least one frontier, and promote debug message to warning
+            if(success_){
+                ROS_WARN("Robot left exploration boundary, returning to center");
+            }else{
+                ROS_DEBUG("Robot not initially in exploration boundary, traveling to center");
+            }
+            //get current robot position in frame of exploration center
+            geometry_msgs::PointStamped eval_point;
+            eval_point.header = eval_pose.header;
+            eval_point.point = eval_pose.pose.position;
+            if(eval_point.header.frame_id != goal->explore_center.header.frame_id){
+                geometry_msgs::PointStamped temp = eval_point;
+                tf_listener_.transformPoint(goal->explore_center.header.frame_id, temp, eval_point);
+            }
+
+            //set goal pose to exploration center
+            goal_pose.header = goal->explore_center.header;
+            goal_pose.pose.position = goal->explore_center.point;
+            goal_pose.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(eval_point.point, goal->explore_center.point) );
+
+        }else if(getNextFrontier.call(srv)){ //if in boundary, try to find next frontier to search
+
+            ROS_DEBUG("Found frontier to explore");
+            success_ = true;
+            goal_pose = feedback_.next_frontier = srv.response.next_frontier;
+            retry_ = 5;
+
+        }else{ //if no frontier found, check if search is successful
+            ROS_DEBUG("Couldn't find a frontier");
+
+            //search is succesful
+            if(retry_ == 0 && success_){
+                ROS_WARN("Finished exploring room");
+                as_.setSucceeded();
+                boost::unique_lock<boost::mutex> lock(move_client_lock_);
+                move_client_.cancelGoalsAtAndBeforeTime(ros::Time::now());
+                return;
+
+            }else if(retry_ == 0 || !ros::ok()){ //search is not successful
+
+                ROS_ERROR("Failed exploration");
+                as_.setAborted();
+                return;
+            }
+
+            ROS_DEBUG("Retrying...");
+            retry_--;
+            //try to find frontier again, without moving robot
+            continue;
+        }
+        //if above conditional does not escape this loop step, search has a valid goal_pose
+        
+        return true;
+    }
 
     /**
      * @brief Execute callback for actionserver, run after accepting a new goal
