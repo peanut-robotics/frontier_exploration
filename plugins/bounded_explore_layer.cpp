@@ -77,10 +77,10 @@ namespace frontier_exploration
     }
 
     bool BoundedExploreLayer::getNextFrontierService(frontier_exploration::GetNextFrontier::Request &req, frontier_exploration::GetNextFrontier::Response &res){
-        return getNextFrontier(req.start_pose, res.next_frontier);
+        return getNextFrontier(req.start_pose, res.next_frontier, res.error_code);
     }
 
-    bool BoundedExploreLayer::getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseStamped &next_frontier){
+    bool BoundedExploreLayer::getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseStamped &next_frontier, int &error_code){
 
         //wait for costmap to get marked with boundary
         ros::Rate r(10);
@@ -93,7 +93,8 @@ namespace frontier_exploration
             //error out if no transform available
             if(!tf_listener_.waitForTransform(layered_costmap_->getGlobalFrameID(), start_pose.header.frame_id,ros::Time::now(),ros::Duration(10))) {
                 ROS_ERROR_STREAM("Couldn't transform from "<<layered_costmap_->getGlobalFrameID()<<" to "<< start_pose.header.frame_id);
-                return false;
+                error_code =  frontier_exploration::GetNextFrontier::Response::TF_ERROR;
+                return true;
             }
             geometry_msgs::PoseStamped temp_pose = start_pose;
             tf_listener_.transformPose(layered_costmap_->getGlobalFrameID(),temp_pose,start_pose);
@@ -106,7 +107,8 @@ namespace frontier_exploration
 
         if(frontier_list.size() == 0){
             ROS_DEBUG("No frontiers found, exploration complete");
-            return false;
+            error_code = frontier_exploration::GetNextFrontier::Response::NO_FRONTIERS;
+            return true;
         }
 
         //create placeholder for selected frontier
@@ -158,6 +160,7 @@ namespace frontier_exploration
         }
 
         next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(start_pose.pose.position, next_frontier.pose.position) );
+        error_code = frontier_exploration::GetNextFrontier::Response::SUCCESS;
         return true;
 
     }

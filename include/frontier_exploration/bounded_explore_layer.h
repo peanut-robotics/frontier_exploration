@@ -84,9 +84,10 @@ protected:
      * @brief Search the costmap for next reachable frontier to explore
      * @param start_pose Pose from which to start search
      * @param next_frontier Pose of found frontier
-     * @return True if a reachable frontier was found, false otherwise
+     * @param error_code error code
+     * @return True if no unexpected errors
      */
-    bool getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseStamped &next_frontier);
+    bool getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseStamped &next_frontier, int &error_code);
 
 private:
 
