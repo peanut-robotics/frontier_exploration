@@ -1,0 +1,9 @@
+geometry_msgs/PoseStamped start_pose
+---
+geometry_msgs/PoseStamped[] frontiers
+int32 error_code
+
+int32 SUCCESS=1
+int32 NO_FRONTIERS=2
+int32 FAILURE=-1
+int32 TF_ERROR=-2
