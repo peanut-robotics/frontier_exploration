@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
   actionlib_msgs
   visualization_msgs
+  std_srvs
   message_generation
 )
 
