@@ -172,8 +172,6 @@ namespace frontier_exploration
                                                     frontier_exploration::ClearCostmapLayer::Response &res){
         bool valid_layer = false;
         std::vector<std::string> layer_names;
-        // Costmap2D* top = layered_costmap_->getCostmap();       
-        // top->resetMap(0, 0, top->getSizeInCellsX(), top->getSizeInCellsY());
         std::vector < boost::shared_ptr<Layer> > *plugins = layered_costmap_->getPlugins();                                         
         for (std::vector<boost::shared_ptr<Layer> >::iterator plugin = plugins->begin(); plugin != plugins->end(); ++plugin)
         {
@@ -188,7 +186,7 @@ namespace frontier_exploration
 
         if(!valid_layer){
             ROS_WARN_STREAM("Could not find layer " << req.layer_name);
-            std::string msg = "Available layer are:";
+            std::string msg = "Available layers are:";
             for(auto const layer : layer_names){
                 msg = msg + " " + layer + ",";
             }
