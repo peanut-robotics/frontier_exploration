@@ -39,6 +39,8 @@ namespace frontier_exploration
 
         ros::NodeHandle nh_("~/" + name_);
         frontier_cloud_pub = nh_.advertise<sensor_msgs::PointCloud2>("frontiers",5);
+        frontier_search_marker_ = nh_.advertise<visualization_msgs::MarkerArray>("frontiers/markers", 5);
+
         configured_ = false;
         marked_ = false;
 
@@ -86,10 +88,10 @@ namespace frontier_exploration
     bool BoundedExploreLayer::getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseStamped &next_frontier, int &error_code){
 
         //wait for costmap to get marked with boundary
-        ros::Rate r(10);
-        while(!marked_){
-            ros::spinOnce();
-            r.sleep();
+        if(!marked_){
+            ROS_ERROR("Costmap not marked");
+            error_code = frontier_exploration::GetNextFrontier::Response::FAILURE;
+            return false;
         }
 
         if(start_pose.header.frame_id != layered_costmap_->getGlobalFrameID()){
@@ -204,10 +206,10 @@ namespace frontier_exploration
         geometry_msgs::PoseStamped start_pose;
 
         // Wait for costmap to get marked with boundary
-        ros::Rate r(10);
-        while(!marked_){
-            ros::spinOnce();
-            r.sleep();
+        if(!marked_){
+            ROS_ERROR("Costmap not marked");
+            res.error_code = frontier_exploration::GetNextFrontier::Response::FAILURE;
+            return false;
         }
 
         start_pose = req.start_pose;
@@ -253,6 +255,43 @@ namespace frontier_exploration
             frontier.header.stamp = ros::Time::now();
             res.frontiers.push_back(frontier);
         }
+        
+        // Publish Markers 
+        visualization_msgs::MarkerArray m_array; 
+        visualization_msgs::Marker m_delete;
+        m_delete.ns = "frontier_exploration/all_frontiers";
+        m_delete.id = 0;
+        m_delete.action = visualization_msgs::Marker::DELETEALL;
+        m_array.markers.push_back(m_delete);
+
+        visualization_msgs::Marker m;
+        m.header.frame_id = "map";
+        m.header.stamp = ros::Time::now();
+        m.ns = "frontier_exploration/all_frontiers";
+        m.id = 1;
+        m.type = visualization_msgs::Marker::POINTS;
+        m.action = visualization_msgs::Marker::ADD;
+        m.frame_locked = true;
+        m.lifetime = ros::Duration(10);
+        m.scale.x = 0.05;
+        m.scale.y = 0.05;
+        m.scale.z = 0.05;
+        for(const Frontier& f : frontier_list){
+            geometry_msgs::Point p;
+            p.x = f.centroid.x;
+            p.y = f.centroid.y;
+            p.z = 0;
+            m.points.push_back(p);
+
+            std_msgs::ColorRGBA c;
+            c.a = 1;
+            c.r = 0.0;
+            c.g = 1.0;
+            c.b = 0.0;
+            m.colors.push_back(c);
+        }
+        m_array.markers.push_back(m);
+        frontier_search_marker_.publish(m_array);
 
         res.error_code = frontier_exploration::GetNextFrontier::Response::SUCCESS;
         return true;

@@ -64,8 +64,8 @@ std::list<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position){
                 //check if cell is new frontier cell (unvisited, NO_INFORMATION, free neighbour)
             }else if(isNewFrontierCell(nbr, frontier_flag)){
                 frontier_flag[nbr] = true;
-                Frontier new_frontier = buildNewFrontier(nbr, pos, frontier_flag);
-                if(new_frontier.size > 1){
+                Frontier new_frontier = buildNewPointFrontier(nbr, pos, frontier_flag);
+                if(new_frontier.size >= 1){
                     frontier_list.push_back(new_frontier);
                 }
             }
@@ -74,6 +74,25 @@ std::list<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position){
 
     return frontier_list;
 
+}
+
+Frontier FrontierSearch::buildNewPointFrontier(unsigned int initial_cell, unsigned int reference, std::vector<bool>& frontier_flag){
+    Frontier output;
+    
+    //record initial contact point for frontier
+    unsigned int ix, iy;
+    costmap_.indexToCells(initial_cell,ix,iy);
+    costmap_.mapToWorld(ix,iy,output.initial.x,output.initial.y);
+
+    //initialize frontier structure
+    output.size = 1;
+    output.min_distance = std::numeric_limits<double>::infinity();
+    output.centroid.x = output.initial.x;
+    output.centroid.y = output.initial.y;
+    output.middle.x = output.initial.x;
+    output.middle.y = output.initial.y;
+
+    return output;
 }
 
 Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell, unsigned int reference, std::vector<bool>& frontier_flag){

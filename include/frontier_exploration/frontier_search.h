@@ -38,6 +38,15 @@ protected:
     Frontier buildNewFrontier(unsigned int initial_cell, unsigned int reference, std::vector<bool>& frontier_flag);
 
     /**
+     * @brief Starting from an initial cell, build a frontier point
+     * @param initial_cell Index of cell to start frontier building
+     * @param reference Reference index to calculate position from
+     * @param frontier_flag Flag vector indicating which cells are already marked as frontiers
+     * @return
+     */
+    Frontier buildNewPointFrontier(unsigned int initial_cell, unsigned int reference, std::vector<bool>& frontier_flag);
+
+    /**
      * @brief isNewFrontierCell Evaluate if candidate cell is a valid candidate for a new frontier.
      * @param idx Index of candidate cell
      * @param frontier_flag Flag vector indicating which cells are already marked as frontiers

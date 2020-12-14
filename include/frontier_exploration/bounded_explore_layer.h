@@ -7,6 +7,10 @@
 #include <dynamic_reconfigure/server.h>
 
 #include <geometry_msgs/Polygon.h>
+#include <geometry_msgs/Point.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <std_msgs/ColorRGBA.h>
 #include <frontier_exploration/Frontier.h>
 #include <frontier_exploration/UpdateBoundaryPolygon.h>
 #include <frontier_exploration/GetNextFrontier.h>
@@ -128,6 +132,7 @@ private:
     tf::TransformListener tf_listener_;
 
     ros::Publisher frontier_cloud_pub;
+    ros::Publisher frontier_search_marker_;
 
     bool configured_, marked_;
 
